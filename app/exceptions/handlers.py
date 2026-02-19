@@ -2,8 +2,6 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 
-# --- Custom Exception Classes ---
-
 class AIRateLimitError(Exception):
     """Raised when Gemini API quota/rate limit is exceeded."""
     pass
@@ -18,8 +16,6 @@ class AIServiceUnavailableError(Exception):
     """Raised when Gemini API is unreachable (network/connection issues)."""
     pass
 
-
-# --- Exception Handlers (registered with FastAPI app) ---
 
 async def rate_limit_handler(request: Request, exc: AIRateLimitError):
     return JSONResponse(
