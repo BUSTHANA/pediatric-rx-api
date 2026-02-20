@@ -1,6 +1,6 @@
 import json
 import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
+from typing import Optional
 from app.config import get_settings
 from app.exceptions.handlers import (
     AIRateLimitError,
@@ -21,7 +21,7 @@ class AIService:
         medicine_name: str,
         child_weight_kg: float,
         child_age_years: float,
-        condition: str | None = None,
+        condition: Optional[str] = None,
     ) -> dict:
 
         condition_context = (
@@ -40,47 +40,47 @@ CHILD'S WEIGHT: {child_weight_kg} kg
 CHILD'S AGE: {child_age_years} years
 CONDITION: {condition_context}
 
-TASK: Calculate and provide a comprehensive dosage recommendation:
+TASK: Calculate the exact dosage for each available form of this medicine. 
 
-1. RECOMMENDED DOSE — Based on the child's weight:
-   - Dose per kg (e.g., "10-15 mg per kg")
-   - Calculated total single dose for this child's weight
-   - Round to practical amounts (e.g., nearest 0.5 mL for liquids)
+For each form (syrup, tablet, capsule, etc.) provide:
+- The form name with concentration (e.g., "Syrup (120mg/5mL)")
+- The single dose in mg (a single numeric value, calculated for this child's weight)
+- For liquids: the dose in mL (a single numeric value, rounded to nearest 0.5 mL)
+- For tablets/capsules: how many to give per dose (a single numeric value)
+- How often to give (e.g., "Every 4-6 hours")
+- Maximum doses per day (a single integer)
 
-2. FREQUENCY — How often to give the medicine:
-   - Interval between doses (e.g., "every 4-6 hours")
-   - Maximum number of doses per day
-   - Whether to give with or without food
-
-3. AVAILABLE FORMS — Child-friendly options:
-   - Liquid/syrup concentration (e.g., "120mg/5mL")
-   - How many mL to give based on the calculated dose
-   - Tablet/chewable options if age-appropriate
-
-4. MAXIMUM DAILY DOSE — Safety limit:
-   - Maximum mg per day for this weight
-   - Maximum number of doses in 24 hours
-
-5. DURATION — How long to give the medicine:
-   - Typical duration for the condition
-   - When to see a doctor if symptoms persist
-
-6. IMPORTANT NOTES — Key safety reminders:
-   - Any age-specific warnings
-   - Common mistakes to avoid
-   - Storage and measuring tips
+Also provide:
+- Maximum daily dose in mg (a single numeric value)
+- 2-3 short safety notes relevant to this medicine and age
 
 RULES:
-- Calculate doses based on standard pediatric dosing guidelines
-- Always provide a RANGE (e.g., 10-15 mg/kg) not a single number
-- Round liquid measurements to practical amounts
-- Include the most common syrup concentration
-- If this medicine is NOT suitable for this age/weight, clearly state that
-- Always emphasize consulting a pediatrician for confirmation
+- All dose values must be SINGLE NUMBERS, not ranges
+- Use the MIDDLE of the recommended range for calculations
+- Round mL to nearest 0.5, tablets to nearest 0.5
+- Only include forms appropriate for this child's age
+- If this medicine is NOT suitable for this age/weight, return empty forms array
 
 Respond ONLY with valid JSON in this exact format, no extra text or markdown:
 {{
-    "dosage_info": "A complete, formatted dosage guide with all the above information as a readable string with line breaks"
+    "forms": [
+        {{
+            "form": "Syrup (120mg/5mL)",
+            "dose_mg": 225.0,
+            "dose_ml": 9.5,
+            "frequency": "Every 4-6 hours",
+            "max_doses_per_day": 4
+        }},
+        {{
+            "form": "Tablet (250mg)",
+            "dose_mg": 225.0,
+            "dose_count": 1.0,
+            "frequency": "Every 4-6 hours",
+            "max_doses_per_day": 4
+        }}
+    ],
+    "max_daily_dose_mg": 900.0,
+    "notes": ["Give with or after food", "Use the measuring syringe provided"]
 }}
 """
 
@@ -105,10 +105,12 @@ Respond ONLY with valid JSON in this exact format, no extra text or markdown:
             raise AIResponseError()
 
         return {
-            "dosage_info": result.get("dosage_info", "No dosage information available."),
+            "forms": result.get("forms", []),
+            "max_daily_dose_mg": result.get("max_daily_dose_mg", 0),
+            "notes": result.get("notes", []),
         }
 
-    async def get_medicine_info(self, medicine_name: str, child_age_years: float | None = None) -> dict:
+    async def get_medicine_info(self, medicine_name: str, child_age_years: Optional[float] = None) -> dict:
 
         age_context = (
             f"The child is {child_age_years} years old. Tailor all information "
@@ -187,7 +189,7 @@ Respond ONLY with valid JSON in this exact format, no extra text or markdown:
             "summary": result.get("summary", "No summary available."),
         }
 
-    async def get_warning_signs(self, medicine_name: str, child_age_years: float | None = None) -> dict:
+    async def get_warning_signs(self, medicine_name: str, child_age_years: Optional[float] = None) -> dict:
 
         age_context = (
             f"The child is {child_age_years} years old. Focus on warning signs specific to this age group."
@@ -261,7 +263,7 @@ Respond ONLY with valid JSON in this exact format, no extra text or markdown:
             "stop_medication_if": result.get("stop_medication_if", []),
         }
 
-    async def get_emergency_info(self, medicine_name: str, child_age_years: float | None = None, child_weight_kg: float | None = None) -> dict:
+    async def get_emergency_info(self, medicine_name: str, child_age_years: Optional[float] = None, child_weight_kg: Optional[float] = None) -> dict:
 
         age_context = (
             f"The child is {child_age_years} years old."
@@ -346,7 +348,7 @@ Respond ONLY with valid JSON in this exact format, no extra text or markdown:
             "emergency_contacts": result.get("emergency_contacts", {}),
         }
 
-    async def check_interactions(self, medicines: list[str], child_age_years: float | None = None) -> dict:
+    async def check_interactions(self, medicines: list[str], child_age_years: Optional[float] = None) -> dict:
 
         medicine_list = ", ".join(medicines)
         age_context = (

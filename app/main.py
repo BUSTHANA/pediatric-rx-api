@@ -60,7 +60,9 @@ async def dosage_calculator(request: DosageRequest):
         medicine_name=request.medicine_name,
         child_weight_kg=request.child_weight_kg,
         child_age_years=request.child_age_years,
-        dosage_info=result["dosage_info"],
+        forms=result["forms"],
+        max_daily_dose_mg=result["max_daily_dose_mg"],
+        notes=result["notes"],
     )
 
 

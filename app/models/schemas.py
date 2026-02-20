@@ -68,12 +68,24 @@ MEDICAL_DISCLAIMER = (
 )
 
 
+class DosageForm(BaseModel):
+
+    form: str = Field(description="Medicine form and concentration, e.g. 'Syrup (120mg/5mL)'")
+    dose_mg: float = Field(description="Single dose in milligrams")
+    dose_ml: Optional[float] = Field(None, description="Single dose in mL (for liquids)")
+    dose_count: Optional[float] = Field(None, description="Number of tablets/capsules per dose")
+    frequency: str = Field(description="How often to give, e.g. 'Every 4-6 hours'")
+    max_doses_per_day: int = Field(description="Maximum number of doses in 24 hours")
+
+
 class DosageResponse(BaseModel):
 
     medicine_name: str
     child_weight_kg: float
     child_age_years: float
-    dosage_info: str                  
+    forms: list[DosageForm]
+    max_daily_dose_mg: float
+    notes: list[str]
     disclaimer: str = MEDICAL_DISCLAIMER
 
 
